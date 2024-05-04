@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Реестр</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+            color: #333;
+        }
+
+        form {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="date"] {
+            width: 200px;
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            background-color: #4CAF50;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 15px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+            color: white;
+        }
+
+        th {
+            background-color: #45a049;
+        }
+
+        tr:hover {
+            background-color: #45a049;
+        }
+
+        .editable {
+            position: relative;
+        }
+
+        .editable input {
+            width: calc(100% - 20px);
+            padding: 5px;
+            margin: 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .edit-btn, .save-btn {
+            padding: 5px 10px;
+            background-color: #45a049;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .edit-btn:hover, .save-btn:hover {
+            background-color: #4CAF50;
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .popup-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Реестр расходов и доходов</h1>
+
+    <!-- Форма для добавления новой статьи -->
+    <form id="addForm" method="POST" action="{% url 'add_article' %}">
+        {% csrf_token %}
+        <input type="text" name="item_name" placeholder="Статья">
+        <input type="text" name="second_item_name" placeholder="Подстатья">
+        <input type="number" name="sum" placeholder="Сумма">
+        <input type="date" name="date">
+        <button type="submit">Добавить</button>
+    </form>
+
+    <!-- Попап для редактирования статьи -->
+    <div id="editPopup" class="popup" style="display: none;">
+        <form id="editForm" method="POST">
+            {% csrf_token %}
+            <input type="hidden" id="articleId" name="article_id">
+            <input type="text" id="itemName" name="item_name" placeholder="Статья">
+            <input type="text" id="secondItemName" name="second_item_name" placeholder="Подстатья">
+            <input type="number" id="sum" name="sum" placeholder="Сумма">
+            <input type="date" id="date" name="date">
+            <button type="submit">Сохранить</button>
+        </form>
+    </div>
+
+    <!-- Таблица статей -->
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Статья</th>
+                <th>Подстатья</th>
+                <th>Сумма</th>
+                <th>Дата</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for article in articles %}
+            <tr data-article-id="{{ article.id }}">
+                <td>{{ article.id }}</td>
+                <td class="editable" data-field="item_name">{{ article.item_name }}</td>
+                <td class="editable" data-field="second_item_name">{{ article.second_item_name }}</td>
+                <td class="editable-number" data-field="sum" data-value="{{ article.sum }}">{{ article.sum }}</td>
+                <td class="editable" data-field="date">{{ article.date }}</td>
+                <td>
+                    <button type="button" class="edit-btn">Редактировать</button>
+                    <button type="button" class="delete-btn">Удалить</button>
+                    <button type="button" class="save-btn" style="display: none;">Сохранить</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+        $(document).ready(function() {
+            // Обработчик кнопки Edit
+            $('.edit-btn').click(function() {
+                var row = $(this).closest('tr');
+                var cells = row.find('.editable');
+                $('#articleId').val(row.attr('data-article-id'));
+                $('#itemName').val(cells.eq(0).text());
+                $('#secondItemName').val(cells.eq(1).text());
+                $('#sum').val(cells.eq(2).text());
+                $('#date').val(cells.eq(3).text());
+                $('#editPopup').show();
+            });
+
+            // Обработчик кнопки Save (редактирование статьи)
+            $('#editForm').submit(function(event) {
+                event.preventDefault();
+                var formData = $(this).serialize();
+                var editUrl = '{% url 'edit_article' %}'; // Указываем URL для редактирования статьи
+                $.post(editUrl, formData) // Отправляем запрос на редактирование статьи
+                    .done(function(response) {
+                        if (response.success) {
+                            // Извлечение идентификатора статьи из скрытого поля ввода
+                            var articleId = $('#articleId').val();
+
+                            // Обновляем данные в таблице
+                            var row = $('tr[data-article-id="' + articleId + '"]');
+                            var cells = row.find('.editable');
+                            cells.eq(0).text($('#itemName').val());
+                            cells.eq(1).text($('#secondItemName').val());
+                            cells.eq(2).text($('#sum').val());
+                            cells.eq(3).text($('#date').val());
+                            $('#editPopup').hide();
+                        } else {
+                            console.error('Не удалось сохранить изменения');
+                        }
+                    })
+                    .fail(function(xhr, status, error) {
+                        console.error('Ошибка при отправке запроса:', error);
+                    });
+            });
+
+            // Обработчик кнопки Add (добавление новой статьи)
+            $('#addForm').submit(function(event) {
+                event.preventDefault();
+                var formData = $(this).serialize();
+                $.post($(this).attr('action'), formData)
+                    .done(function(response) {
+                        if (response.success) {
+                            // Обновляем таблицу, добавляя новую строку
+                            var newRow = '<tr data-article-id="' + response.article_id + '">';
+                            newRow += '<td>' + response.article_id + '</td>';
+                            newRow += '<td class="editable" data-field="item_name">' + formData.item_name + '</td>';
+                            newRow += '<td class="editable" data-field="second_item_name">' + formData.second_item_name + '</td>';
+                            newRow += '<td class="editable" data-field="sum">' + formData.sum + '</td>';
+                            newRow += '<td class="editable" data-field="date">' + formData.date + '</td>';
+                            newRow += '<td><button type="button" class="edit-btn">Редактировать</button></td>';
+                            newRow += '</tr>';
+                            $('tbody').append(newRow);
+                            $('#addForm')[0].reset();
+                        } else {
+                            console.error('Не удалось добавить новую статью');
+                        }
+                    })
+                    .fail(function() {
+                        console.error('Ошибка: не удалось добавить новую статью');
+                    });
+            });
+            $(document).ready(function() {
+                function formatNumber(number) {
+                    return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+                }
+
+                $('.editable-number').each(function() {
+                    var value = $(this).data('value');
+                    $(this).text(formatNumber(value));
+                });
+            });
+            $(document).ready(function() {
+                // Обработчик кнопки удаления строки
+                $('.delete-btn').click(function() {
+                    var row = $(this).closest('tr');
+                    row.remove();
+                });
+            });
+        });
+    </script>
+</body>
+</html>
